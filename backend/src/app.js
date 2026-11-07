@@ -3,14 +3,24 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { env } from './config/env.js';
 import { productRoutes } from './routes/productRoutes.js';
+import { movementRoutes } from './routes/movementRoutes.js';
+import { getDashboardData } from './controllers/dashboardController.js';
 
 export const app = express();
 
-app.use(cors({ origin: env.frontendUrl }));
+app.use(cors({
+  origin(origin, callback) {
+    const isLocalVite = /^http:\/\/localhost:\d+$/.test(origin || '');
+    if (!origin || origin === env.frontendUrl || isLocalVite) return callback(null, true);
+    return callback(new Error('Origem não permitida pelo CORS.'));
+  }
+}));
 app.use(express.json());
 
 app.get('/health', (_request, response) => response.json({ status: 'ok' }));
 app.use('/api/products', productRoutes);
+app.use('/api/movements', movementRoutes);
+app.get('/api/dashboard', getDashboardData);
 
 app.use((error, _request, response, _next) => {
   if (error instanceof mongoose.Error.CastError) {

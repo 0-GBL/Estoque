@@ -19,7 +19,7 @@ export function ProductForm({ product, onSave, onCancel, saving }) {
   }
 
   return (
-    <form className="product-form" onSubmit={submit}>
+    <form className="product-form panel" onSubmit={submit}>
       <h2>{product ? 'Editar produto' : 'Novo produto'}</h2>
       <label>Nome<input name="name" value={form.name} onChange={changeField} required maxLength="120" /></label>
       <label>Código<input name="code" value={form.code} onChange={changeField} required maxLength="50" /></label>

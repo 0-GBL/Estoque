@@ -1,42 +1,22 @@
 import { useEffect, useState } from 'react';
+import { ArrowLeftRight, Menu, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Dashboard, MovementList } from './components/Dashboard.jsx';
+import { MovementForm } from './components/MovementForm.jsx';
 import { ProductForm } from './components/ProductForm.jsx';
 import { ProductTable } from './components/ProductTable.jsx';
+import { Sidebar } from './components/Sidebar.jsx';
 import { api } from './services/api.js';
 
 export default function App() {
-  const [products, setProducts] = useState([]);
-  const [editing, setEditing] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  async function loadProducts() {
-    try { setProducts((await api.get('/products')).data); } catch { setError('Não foi possível carregar os produtos. Confira se a API está em execução.'); }
-  }
-  useEffect(() => { loadProducts(); }, []);
-
-  async function saveProduct(data) {
-    setSaving(true); setError(''); setMessage('');
-    try {
-      if (editing) await api.put(`/products/${editing._id}`, data);
-      else await api.post('/products', data);
-      setMessage(editing ? 'Produto atualizado com sucesso.' : 'Produto cadastrado com sucesso.');
-      setEditing(null); await loadProducts();
-    } catch (requestError) { setError(requestError.response?.data?.message || 'Não foi possível salvar o produto.'); }
-    finally { setSaving(false); }
-  }
-
-  async function deleteProduct(product) {
-    if (!window.confirm(`Excluir o produto “${product.name}”?`)) return;
-    try { await api.delete(`/products/${product._id}`); setMessage('Produto excluído com sucesso.'); await loadProducts(); }
-    catch (requestError) { setError(requestError.response?.data?.message || 'Não foi possível excluir o produto.'); }
-  }
-
-  return <main className="container">
-    <header><p className="eyebrow">GERENCIAMENTO</p><h1>Controle de estoque</h1><p>Cadastre e acompanhe seus produtos em um só lugar.</p></header>
-    {message && <p className="notice success">{message}</p>}{error && <p className="notice error">{error}</p>}
-    <section className="grid"><ProductForm product={editing} onSave={saveProduct} onCancel={() => setEditing(null)} saving={saving} />
-      <section className="products"><div className="section-heading"><h2>Produtos cadastrados</h2><span>{products.length} {products.length === 1 ? 'item' : 'itens'}</span></div><ProductTable products={products} onEdit={setEditing} onDelete={deleteProduct} /></section>
-    </section>
-  </main>;
+  const [products, setProducts] = useState([]); const [editing, setEditing] = useState(null); const [view, setView] = useState('dashboard'); const [dashboard, setDashboard] = useState(null); const [movements, setMovements] = useState([]); const [saving, setSaving] = useState(false); const [message, setMessage] = useState(''); const [error, setError] = useState(''); const [filters, setFilters] = useState({ search: '', stock: '', sort: 'newest' }); const [menuOpen, setMenuOpen] = useState(false);
+  async function loadProducts(nextFilters = filters) { try { setProducts((await api.get('/products', { params: nextFilters })).data); } catch { setError('Não foi possível carregar os produtos. Confira se a API está em execução.'); } }
+  async function loadDashboard() { try { const [dash, moves] = await Promise.all([api.get('/dashboard'), api.get('/movements')]); setDashboard(dash.data); setMovements(moves.data); } catch { /* erro principal é exibido pelo catálogo */ } }
+  useEffect(() => { loadProducts(); loadDashboard(); }, []);
+  function navigate(next) { setView(next); setMenuOpen(false); if (next === 'products') loadProducts(); else { const allProducts = { search: '', stock: '', sort: 'newest' }; setFilters(allProducts); loadProducts(allProducts); loadDashboard(); } }
+  async function saveProduct(data) { setSaving(true); setError(''); setMessage(''); try { if (editing) await api.put(`/products/${editing._id}`, data); else await api.post('/products', data); setMessage(editing ? 'Produto atualizado com sucesso.' : 'Produto cadastrado com sucesso.'); setEditing(null); await loadProducts(); await loadDashboard(); } catch (requestError) { setError(requestError.response?.data?.message || 'Não foi possível salvar o produto.'); } finally { setSaving(false); } }
+  async function deleteProduct(product) { if (!window.confirm(`Excluir o produto “${product.name}”?`)) return; try { await api.delete(`/products/${product._id}`); setMessage('Produto excluído com sucesso.'); await loadProducts(); await loadDashboard(); } catch (requestError) { setError(requestError.response?.data?.message || 'Não foi possível excluir o produto.'); } }
+  async function saveMovement(data, clear) { setSaving(true); setError(''); try { await api.post('/movements', data); setMessage('Movimentação registrada com sucesso.'); clear(); await loadProducts(); await loadDashboard(); } catch (requestError) { setError(requestError.response?.data?.message || 'Não foi possível registrar a movimentação.'); } finally { setSaving(false); } }
+  function changeFilters(next) { const updated = { ...filters, ...next }; setFilters(updated); loadProducts(updated); }
+  function openNewProduct() { setEditing(null); setView('products'); setMenuOpen(false); }
+  return <main className="app-shell"><Sidebar active={view} onChange={navigate} onNewProduct={openNewProduct} /><div className="mobile-header"><button onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button><b>Stockly</b>{menuOpen && <Sidebar active={view} onChange={navigate} onNewProduct={openNewProduct} />}</div><div className="main-area"><header className="topbar"><div><span className="live-dot" /> Sistema operacional</div><button className="avatar">G</button></header>{message && <p className="notice success">{message}</p>}{error && <p className="notice error">{error}</p>}{view === 'dashboard' && <Dashboard data={dashboard} products={products} onProducts={() => navigate('products')} />}{view === 'products' && <section className="page-content"><div className="page-title"><div><p className="kicker">CATÁLOGO</p><h1>Produtos</h1><p>Gerencie os itens e o nível de estoque.</p></div><button onClick={openNewProduct}><Plus size={18} /> Novo produto</button></div><div className="products-layout"><ProductForm product={editing} onSave={saveProduct} onCancel={() => setEditing(null)} saving={saving} /><article className="panel catalog-panel"><div className="catalog-toolbar"><div className="search-field"><Search size={18} /><input value={filters.search} placeholder="Buscar por nome ou código" onChange={(event) => changeFilters({ search: event.target.value })} /></div><div className="select-wrap"><SlidersHorizontal size={16} /><select value={filters.stock} onChange={(event) => changeFilters({ stock: event.target.value })}><option value="">Todos os níveis</option><option value="low">Estoque baixo</option><option value="out">Sem estoque</option></select></div><select value={filters.sort} onChange={(event) => changeFilters({ sort: event.target.value })}><option value="newest">Mais recentes</option><option value="name">Nome (A-Z)</option><option value="price">Maior valor</option><option value="quantity">Menor estoque</option></select></div><div className="section-heading"><h2>Catálogo</h2><span>{products.length} {products.length === 1 ? 'item' : 'itens'}</span></div><ProductTable products={products} onEdit={setEditing} onDelete={deleteProduct} /></article></div></section>}{view === 'movements' && <section className="page-content"><div className="page-title"><div><p className="kicker">MOVIMENTAÇÕES</p><h1>Entradas e saídas</h1><p>Registre e acompanhe todas as mudanças no estoque.</p></div><span className="page-icon"><ArrowLeftRight /></span></div><article className="panel"><h2>Nova movimentação</h2><MovementForm products={products} onSave={saveMovement} saving={saving} /></article><article className="panel movements-panel"><div className="panel-heading"><div><h2>Histórico de movimentações</h2><p>Últimos 100 registros</p></div></div><MovementList movements={movements} /></article></section>}</div></main>;
 }

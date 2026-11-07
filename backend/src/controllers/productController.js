@@ -1,5 +1,5 @@
-import { Product } from '../models/Product.js';
 import { productSchema } from '../schemas/productSchema.js';
+import * as productService from '../services/productService.js';
 
 function parseProduct(body) {
   const result = productSchema.safeParse(body);
@@ -11,28 +11,24 @@ function parseProduct(body) {
   return result.data;
 }
 
-export async function listProducts(_request, response) {
-  const products = await Product.find().sort({ createdAt: -1 });
+export async function listProducts(request, response) {
+  const products = await productService.listProducts(request.query);
   return response.json(products);
 }
 
 export async function createProduct(request, response) {
-  const product = await Product.create(parseProduct(request.body));
+  const product = await productService.createProduct(parseProduct(request.body));
   return response.status(201).json(product);
 }
 
 export async function updateProduct(request, response) {
-  const product = await Product.findByIdAndUpdate(
-    request.params.id,
-    parseProduct(request.body),
-    { new: true, runValidators: true }
-  );
+  const product = await productService.updateProduct(request.params.id, parseProduct(request.body));
   if (!product) return response.status(404).json({ message: 'Produto não encontrado.' });
   return response.json(product);
 }
 
 export async function deleteProduct(request, response) {
-  const product = await Product.findByIdAndDelete(request.params.id);
+  const product = await productService.removeProduct(request.params.id);
   if (!product) return response.status(404).json({ message: 'Produto não encontrado.' });
   return response.status(204).send();
 }
